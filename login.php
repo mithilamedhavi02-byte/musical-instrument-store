@@ -39,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Check recent failed attempts
         $check_sql = "SELECT COUNT(*) as attempts FROM login_attempts 
                      WHERE ip_address = ? AND attempt_time > ?";
-        $check_stmt = execute_prepared($check_sql, [$ip_address, $attempt_time], 'si');
         $attempts = fetch_one_prepared($check_sql, [$ip_address, $attempt_time], 'si');
         
         if ($attempts && $attempts['attempts'] >= 5) {
@@ -47,99 +46,93 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         } else {
             // Use prepared statement to prevent SQL injection
             $sql = "SELECT * FROM users WHERE email = ? AND active = 1 LIMIT 1";
-            $stmt = execute_prepared($sql, [$email], 's');
+            $user = fetch_one_prepared($sql, [$email], 's');
             
-            if ($stmt) {
-                $user = fetch_one_prepared($sql, [$email], 's');
-                
-                if ($user) {
-                    // Verify password
-                    if (password_verify($password, $user['password'])) {
-                        // Check if password needs rehashing
-                        if (password_needs_rehash($user['password'], PASSWORD_DEFAULT)) {
-                            $new_hash = password_hash($password, PASSWORD_DEFAULT);
-                            $update_sql = "UPDATE users SET password = ? WHERE user_id = ?";
-                            execute_prepared($update_sql, [$new_hash, $user['user_id']], 'si');
-                        }
-                        
-                        // Login successful - set session variables
-                        $_SESSION['user_id'] = $user['user_id'];
-                        $_SESSION['username'] = $user['username'];
-                        $_SESSION['user_email'] = $user['email'];
-                        $_SESSION['user_name'] = $user['full_name'];
-                        $_SESSION['user_role'] = $user['user_role'];
-                        $_SESSION['logged_in'] = true;
-                        $_SESSION['login_time'] = time();
-                        
-                        // Regenerate session ID to prevent session fixation
-                        session_regenerate_id(true);
-                        
-                        // Update last login time and IP
-                        $update_sql = "UPDATE users SET last_login = NOW(), last_ip = ? WHERE user_id = ?";
-                        execute_prepared($update_sql, [$ip_address, $user['user_id']], 'si');
-                        
-                        // Clear any failed login attempts for this IP
-                        $clear_sql = "DELETE FROM login_attempts WHERE ip_address = ?";
-                        execute_prepared($clear_sql, [$ip_address], 's');
-                        
-                        // Remember me - Set secure cookie for 30 days
-                        if ($remember) {
-                            $token = bin2hex(random_bytes(32));
-                            $expiry = time() + (86400 * 30); // 30 days
-                            
-                            // Set secure cookie
-                            setcookie('remember_token', $token, [
-                                'expires' => $expiry,
-                                'path' => '/',
-                                'secure' => isset($_SERVER['HTTPS']),
-                                'httponly' => true,
-                                'samesite' => 'Strict'
-                            ]);
-                            
-                            // Store hashed token in database
-                            $hashed_token = hash('sha256', $token);
-                            $token_sql = "UPDATE users SET remember_token = ?, token_expiry = FROM_UNIXTIME(?) WHERE user_id = ?";
-                            execute_prepared($token_sql, [$hashed_token, $expiry, $user['user_id']], 'sii');
-                        }
-                        
-                        // Initialize sessions
-                        if (!isset($_SESSION['cart'])) {
-                            $_SESSION['cart'] = [];
-                        }
-                        if (!isset($_SESSION['wishlist'])) {
-                            $_SESSION['wishlist'] = [];
-                        }
-                        
-                        // Set a session timeout (2 hours)
-                        $_SESSION['session_expiry'] = time() + (2 * 60 * 60);
-                        
-                        // Check for redirect URL
-                        $redirect_url = isset($_POST['redirect']) ? htmlspecialchars($_POST['redirect']) : 'index.php';
-                        
-                        // Redirect based on role
-                        if ($user['user_role'] == 'admin') {
-                            header("Location: admin/dashboard.php");
-                        } else {
-                            header("Location: $redirect_url");
-                        }
-                        exit();
-                    } else {
-                        // Invalid password - log failed attempt
-                        $log_sql = "INSERT INTO login_attempts (email, ip_address, attempt_time) VALUES (?, ?, ?)";
-                        execute_prepared($log_sql, [$email, $ip_address, time()], 'ssi');
-                        
-                        $remaining = 5 - ($attempts['attempts'] ?? 0) - 1;
-                        if ($remaining > 0) {
-                            $error = "Invalid email or password. {$remaining} attempts remaining.";
-                        } else {
-                            $error = "Too many failed attempts. Please try again later.";
-                        }
+            if ($user) {
+                // Verify password
+                if (password_verify($password, $user['password'])) {
+                    // Check if password needs rehashing
+                    if (password_needs_rehash($user['password'], PASSWORD_DEFAULT)) {
+                        $new_hash = password_hash($password, PASSWORD_DEFAULT);
+                        $update_sql = "UPDATE users SET password = ? WHERE user_id = ?";
+                        execute_prepared_no_fetch($update_sql, [$new_hash, $user['user_id']], 'si');
                     }
+                    
+                    // Login successful - set session variables
+                    $_SESSION['user_id'] = $user['user_id'];
+                    $_SESSION['username'] = $user['username'];
+                    $_SESSION['user_email'] = $user['email'];
+                    $_SESSION['user_name'] = $user['full_name'];
+                    $_SESSION['user_role'] = $user['user_role'];
+                    $_SESSION['logged_in'] = true;
+                    $_SESSION['login_time'] = time();
+                    
+                    // Regenerate session ID to prevent session fixation
+                    session_regenerate_id(true);
+                    
+                    // Update last login time and IP
+                    $update_sql = "UPDATE users SET last_login = NOW(), last_ip = ? WHERE user_id = ?";
+                    execute_prepared_no_fetch($update_sql, [$ip_address, $user['user_id']], 'si');
+                    
+                    // Clear any failed login attempts for this IP
+                    $clear_sql = "DELETE FROM login_attempts WHERE ip_address = ?";
+                    execute_prepared_no_fetch($clear_sql, [$ip_address], 's');
+                    
+                    // Remember me - Set secure cookie for 30 days
+                    if ($remember) {
+                        $token = bin2hex(random_bytes(32));
+                        $expiry = time() + (86400 * 30); // 30 days
+                        
+                        // Set secure cookie
+                        setcookie('remember_token', $token, [
+                            'expires' => $expiry,
+                            'path' => '/',
+                            'secure' => isset($_SERVER['HTTPS']),
+                            'httponly' => true,
+                            'samesite' => 'Strict'
+                        ]);
+                        
+                        // Store hashed token in database
+                        $hashed_token = hash('sha256', $token);
+                        $token_sql = "UPDATE users SET remember_token = ?, token_expiry = FROM_UNIXTIME(?) WHERE user_id = ?";
+                        execute_prepared_no_fetch($token_sql, [$hashed_token, $expiry, $user['user_id']], 'sii');
+                    }
+                    
+                    // Initialize sessions
+                    if (!isset($_SESSION['cart'])) {
+                        $_SESSION['cart'] = [];
+                    }
+                    if (!isset($_SESSION['wishlist'])) {
+                        $_SESSION['wishlist'] = [];
+                    }
+                    
+                    // Set a session timeout (2 hours)
+                    $_SESSION['session_expiry'] = time() + (2 * 60 * 60);
+                    
+                    // Check for redirect URL
+                    $redirect_url = isset($_POST['redirect']) ? htmlspecialchars($_POST['redirect']) : 'index.php';
+                    
+                    // Redirect based on role
+                    if ($user['user_role'] == 'admin') {
+                        header("Location: admin/dashboard.php");
+                    } else {
+                        header("Location: $redirect_url");
+                    }
+                    exit();
                 } else {
-                    $error = "Invalid email or password or account is inactive";
+                    // Invalid password - log failed attempt
+                    $log_sql = "INSERT INTO login_attempts (email, ip_address, attempt_time) VALUES (?, ?, ?)";
+                    execute_prepared_no_fetch($log_sql, [$email, $ip_address, time()], 'ssi');
+                    
+                    $remaining = 5 - ($attempts['attempts'] ?? 0) - 1;
+                    if ($remaining > 0) {
+                        $error = "Invalid email or password. {$remaining} attempts remaining.";
+                    } else {
+                        $error = "Too many failed attempts. Please try again later.";
+                    }
                 }
             } else {
-                $error = "System error. Please try again later.";
+                $error = "Invalid email or password or account is inactive";
             }
         }
     }
@@ -260,11 +253,6 @@ if (!isset($_SESSION['csrf_token'])) {
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
-        }
-
-        @keyframes shimmer {
-            0% { background-position: -1000px 0; }
-            100% { background-position: 1000px 0; }
         }
 
         /* Floating elements */

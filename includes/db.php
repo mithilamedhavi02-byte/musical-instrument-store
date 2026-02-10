@@ -1,6 +1,6 @@
 <?php
 // includes/db.php - COMPLETE DATABASE CONNECTION
-session_start();
+// NO session_start() HERE
 
 $host = "localhost";
 $user = "root";
@@ -18,16 +18,12 @@ if (!$conn) {
 // Set charset
 mysqli_set_charset($conn, "utf8mb4");
 
-// Enable error reporting for development
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 // SIMPLE HELPER FUNCTIONS
 function query($sql) {
     global $conn;
     
     // Log queries for debugging
-    if (isset($_SESSION['debug']) && $_SESSION['debug']) {
+    if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['debug']) && $_SESSION['debug']) {
         error_log("SQL Query: " . $sql);
     }
     
@@ -38,7 +34,7 @@ function query($sql) {
         error_log($error_msg);
         
         // Show error in development mode
-        if (isset($_SESSION['debug']) && $_SESSION['debug']) {
+        if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['debug']) && $_SESSION['debug']) {
             die($error_msg);
         }
         
@@ -108,6 +104,8 @@ function affected_rows() {
 
 // Database initialization function
 function init_database() {
+    global $conn;
+    
     // Check if tables exist, create if not
     $tables = [
         'users' => "CREATE TABLE IF NOT EXISTS users (
@@ -121,9 +119,19 @@ function init_database() {
             user_role ENUM('user', 'admin') DEFAULT 'user',
             active BOOLEAN DEFAULT 1,
             remember_token VARCHAR(100),
-            last_login TIMESTAMP NULL,
+            token_expiry DATETIME NULL,
+            last_login DATETIME NULL,
+            last_ip VARCHAR(45),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )",
+        
+        'login_attempts' => "CREATE TABLE IF NOT EXISTS login_attempts (
+            attempt_id INT PRIMARY KEY AUTO_INCREMENT,
+            email VARCHAR(100),
+            ip_address VARCHAR(45),
+            attempt_time INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
         
         'categories' => "CREATE TABLE IF NOT EXISTS categories (
@@ -332,14 +340,17 @@ function init_database() {
 }
 
 // Initialize database on first run (only in development)
-if (!isset($_SESSION['db_initialized']) && isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) {
-    init_database();
-    $_SESSION['db_initialized'] = true;
+if (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) {
+    // Check if initialized flag exists in database or file
+    $check_table = query("SELECT 1 FROM users LIMIT 1");
+    if (!$check_table) {
+        init_database();
+    }
 }
 
 // Debug function
 function debug($data, $label = '') {
-    if (isset($_SESSION['debug']) && $_SESSION['debug']) {
+    if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['debug']) && $_SESSION['debug']) {
         echo '<div style="background: #f8f9fa; padding: 15px; border: 1px solid #dee2e6; border-radius: 5px; margin: 10px 0;">';
         if ($label) {
             echo '<strong>' . htmlspecialchars($label) . ':</strong><br>';
@@ -353,17 +364,24 @@ function debug($data, $label = '') {
 
 // Function to check if user is logged in
 function is_logged_in() {
-    return isset($_SESSION['user_id']) && $_SESSION['logged_in'] === true;
+    return session_status() === PHP_SESSION_ACTIVE && 
+           isset($_SESSION['user_id']) && 
+           $_SESSION['logged_in'] === true;
 }
 
 // Function to check if user is admin
 function is_admin() {
-    return isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
+    return session_status() === PHP_SESSION_ACTIVE && 
+           isset($_SESSION['user_role']) && 
+           $_SESSION['user_role'] === 'admin';
 }
 
 // Function to require login
 function require_login($redirect_to = 'login.php') {
     if (!is_logged_in()) {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
         $_SESSION['redirect_url'] = $_SERVER['REQUEST_URI'];
         header("Location: $redirect_to");
         exit();
@@ -378,6 +396,181 @@ function require_admin($redirect_to = 'login.php') {
         header("Location: index.php");
         exit();
     }
+}
+
+// Function to get database connection
+function get_db_connection() {
+    global $conn;
+    return $conn;
+}
+
+// Function to execute prepared statement
+function execute_prepared($sql, $params = [], $types = '') {
+    global $conn;
+    
+    $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        error_log("Prepare failed: " . mysqli_error($conn));
+        return false;
+    }
+    
+    if (!empty($params)) {
+        if (empty($types)) {
+            // Auto-detect types
+            $types = '';
+            foreach ($params as $param) {
+                if (is_int($param)) {
+                    $types .= 'i';
+                } elseif (is_float($param)) {
+                    $types .= 'd';
+                } elseif (is_string($param)) {
+                    $types .= 's';
+                } else {
+                    $types .= 'b'; // blob
+                }
+            }
+        }
+        
+        mysqli_stmt_bind_param($stmt, $types, ...$params);
+    }
+    
+    $executed = mysqli_stmt_execute($stmt);
+    if (!$executed) {
+        error_log("Execute failed: " . mysqli_stmt_error($stmt));
+        mysqli_stmt_close($stmt);
+        return false;
+    }
+    
+    return $stmt;
+}
+
+// Function to fetch results from prepared statement
+function fetch_prepared($sql, $params = [], $types = '') {
+    global $conn;
+    
+    $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        error_log("Prepare failed: " . mysqli_error($conn));
+        return [];
+    }
+    
+    if (!empty($params)) {
+        if (empty($types)) {
+            // Auto-detect types
+            $types = '';
+            foreach ($params as $param) {
+                if (is_int($param)) {
+                    $types .= 'i';
+                } elseif (is_float($param)) {
+                    $types .= 'd';
+                } elseif (is_string($param)) {
+                    $types .= 's';
+                } else {
+                    $types .= 'b'; // blob
+                }
+            }
+        }
+        
+        mysqli_stmt_bind_param($stmt, $types, ...$params);
+    }
+    
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    
+    if (!$result) {
+        error_log("Get result failed: " . mysqli_stmt_error($stmt));
+        mysqli_stmt_close($stmt);
+        return [];
+    }
+    
+    $rows = [];
+    while ($row = mysqli_fetch_assoc($result)) {
+        $rows[] = $row;
+    }
+    
+    mysqli_stmt_close($stmt);
+    return $rows;
+}
+
+// Function to fetch single row from prepared statement
+function fetch_one_prepared($sql, $params = [], $types = '') {
+    global $conn;
+    
+    $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        error_log("Prepare failed: " . mysqli_error($conn));
+        return null;
+    }
+    
+    if (!empty($params)) {
+        if (empty($types)) {
+            // Auto-detect types
+            $types = '';
+            foreach ($params as $param) {
+                if (is_int($param)) {
+                    $types .= 'i';
+                } elseif (is_float($param)) {
+                    $types .= 'd';
+                } elseif (is_string($param)) {
+                    $types .= 's';
+                } else {
+                    $types .= 'b'; // blob
+                }
+            }
+        }
+        
+        mysqli_stmt_bind_param($stmt, $types, ...$params);
+    }
+    
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    
+    if (!$result) {
+        error_log("Get result failed: " . mysqli_stmt_error($stmt));
+        mysqli_stmt_close($stmt);
+        return null;
+    }
+    
+    $row = mysqli_fetch_assoc($result);
+    mysqli_stmt_close($stmt);
+    
+    return $row ?: null;
+}
+
+// Function to execute prepared statement without fetching
+function execute_prepared_no_fetch($sql, $params = [], $types = '') {
+    global $conn;
+    
+    $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        error_log("Prepare failed: " . mysqli_error($conn));
+        return false;
+    }
+    
+    if (!empty($params)) {
+        if (empty($types)) {
+            // Auto-detect types
+            $types = '';
+            foreach ($params as $param) {
+                if (is_int($param)) {
+                    $types .= 'i';
+                } elseif (is_float($param)) {
+                    $types .= 'd';
+                } elseif (is_string($param)) {
+                    $types .= 's';
+                } else {
+                    $types .= 'b'; // blob
+                }
+            }
+        }
+        
+        mysqli_stmt_bind_param($stmt, $types, ...$params);
+    }
+    
+    $executed = mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    
+    return $executed;
 }
 
 // Close database connection on script end
