@@ -585,9 +585,7 @@ $wishlist_count = count($_SESSION['wishlist']);
                                     </button>
                                     <?php endif; ?>
                                 <?php else: ?>
-                                    <button class="btn btn-gold" disabled>
-                                        <i class="fas fa-bell me-2"></i> Notify When Available
-                                    </button>
+                                    
                                 <?php endif; ?>
                                 
                                 <!-- View Details Button -->
