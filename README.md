@@ -50,15 +50,6 @@ An online web-based Musical Instrument Store that allows users to browse, search
 <img width="1847" height="1061" alt="image" src="https://github.com/user-attachments/assets/83b5017c-a4b4-40df-a430-3f8990283358" />
 
 
-### ℹ️ About Page
-<img width="1866" height="1013" alt="image" src="https://github.com/user-attachments/assets/71bc5dc1-65de-4a3d-961a-c237b65a648f" />
-
-### 📞 Contact Page
-<img width="1864" height="1042" alt="image" src="https://github.com/user-attachments/assets/e06189b2-d54c-4b1b-91d8-86637ce3a22a" />
-
-### 🛒 Shopping Cart
-<img width="1857" height="891" alt="image" src="https://github.com/user-attachments/assets/114ca210-d79a-413b-ac64-c9d431c69346" />
-
 ### 🛠️ Admin Dashboard
 <img width="1832" height="1048" alt="image" src="https://github.com/user-attachments/assets/8547bb0c-7a69-4b6d-8e61-da8c2d8f280d" />
 
