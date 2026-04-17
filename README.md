@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-# musical-instrument-store
-A professional E-commerce web application for a musical instrument shop built with PHP, MySQL, and Bootstrap 5, featuring a dynamic typewriter hero section and AJAX-based product management.
-=======
+
 # 🎵 Musical Instrument Store
 
 An online web-based Musical Instrument Store that allows users to browse, search, and purchase musical instruments easily.
@@ -41,17 +38,16 @@ An online web-based Musical Instrument Store that allows users to browse, search
 - MySQL
 
 ### Tools
-- XAMPP / WAMP / LAMP
+- XAMPP 
 - Git & GitHub
 
 ## 📸 Screenshots
 
 ### 🏠 Home Page
-<img width="1846" height="1038" alt="Screenshot 2026-02-26 211149" src="https://github.com/user-attachments/assets/ffcbeee3-f864-4377-b9f9-002295fb274f" />
-
+<img src="https://github.com/user-attachments/assets/71552645-aa89-433b-a54f-f8733fca37ad" width="100%" alt="Melody Masters Home Page">
 
 ### 🎸 Products Page
-<img width="1847" height="1061" alt="image" src="https://github.com/user-attachments/assets/83b5017c-a4b4-40df-a430-3f8990283358" />
+<img src="https://github.com/user-attachments/assets/a8c35f6f-f724-427c-933a-db8cc673e00a" width="100%" alt="Melody Masters Products Page 2">
 
 
 ### 🛠️ Admin Dashboard
@@ -62,9 +58,6 @@ An online web-based Musical Instrument Store that allows users to browse, search
 <img width="1852" height="1043" alt="image" src="https://github.com/user-attachments/assets/272fcbfc-5c51-46e8-95c9-5605e7fef4dc" />
 
 
-### 📦 Admin View Orders Page
-<img width="1834" height="990" alt="image" src="https://github.com/user-attachments/assets/1d0f59ed-f02d-46a9-83c1-28c34a8e5557" />
 
 
 
->>>>>>> 239a396db0de5281ee3a468a9199a92525f556f7
